@@ -4,7 +4,7 @@ from pyglet.gl import *
 from collections import deque
 import pandas as pd
 import numpy as np
-from mod import DrawCircle, DrawLine, DrawStim
+from mod import DrawLine, DrawStim
 
 # Get display informations
 use_scr = 0
@@ -15,7 +15,7 @@ screens = display.get_screens()
 win = pyglet.window.Window()
 win.set_config = config
 #win = pyglet.window.Window(style=pyglet.window.Window.WINDOW_STYLE_BORDERLESS)
-win.set_fullscreen(fullscreen = False, screen = screens[use_scr])
+win.set_fullscreen(fullscreen = True, screen = screens[use_scr])
 #win.set_exclusive_mouse() # Exclude mouse pointer
 key = pyglet.window.key
 batch = pyglet.graphics.Batch()
@@ -24,7 +24,8 @@ batch = pyglet.graphics.Batch()
 rept = 3 # Input repeat counts
 data = pd.read_csv("hoch.csv") # Load the condition file
 distract_x = -1 # presentation distract grid on right when positive number
-line_width = 3　# circles' line size
+line_width = 3 # circles' line size
+d = 5 # disparity
 #------------------------------------------------------------------------
 
 # Load variable conditions
@@ -46,13 +47,6 @@ trial_starts = [] # Store time when trial starts
 kud_list = [] # Store durations of key pressed
 cdt = [] #Store sum(kud), cumulative reaction time on a trial.
 
-# 頂点リストグループを格納
-inner_group = pyglet.graphics.OrderedGroup(4)
-outer_group = pyglet.graphics.OrderedGroup(5)
-hmask_group = pyglet.graphics.OrderedGroup(6)
-pmask_group1 = pyglet.graphics.OrderedGroup(7)
-pmask_group2 = pyglet.graphics.OrderedGroup(8)
-
 # Load sound resource
 p_sound = pyglet.resource.media("button57.mp3", streaming = False)
 beep_sound = pyglet.resource.media("p01.mp3", streaming = False)
@@ -61,19 +55,6 @@ beep_sound = pyglet.resource.media("p01.mp3", streaming = False)
 
 r = 50
 pi = np.pi
-
-#　drawing circle function
-def circle(xpos, ypos, radius, vertices, group):
-    glClear(GL_COLOR_BUFFER_BIT)
-    for i in range(vertices):
-        x = radius*np.cos(2.0*pi*float(i)/float(vertices))
-        y = radius*np.sin(2.0*pi*float(i)/float(vertices))
-        vlist = batch.add(1, GL_LINE_LOOP, group, ("v2f", [x + xpos, y + ypos]), ("c3f", [0.0, 0.0, 0.0]))
-
-circler = circle(cntx + deg1*iso, cnty, 50, 120, pyglet.graphics.OrderedGroup(0))
-circlel = circle(cntx - deg1*iso, cnty, 50, 120, pyglet.graphics.OrderedGroup(1))
-lerge_circler = circle(cntx + deg1*iso, cnty, 100, 120, pyglet.graphics.OrderedGroup(2))
-lerge_circlel = circle(cntx - deg1*iso, cnty, 100, 120, pyglet.graphics.OrderedGroup(3))
 
 # A getting key response function
 class key_resp(object):
@@ -97,12 +78,17 @@ class key_resp(object):
 resp_handler = key_resp()
 
 # Set up polygons for presentation area
-bsl = DrawStim.DrawStim(deg1*5, deg1*5, cntx - deg1*iso, cnty, 1.0, 1.0, 1.0)
-bsr = DrawStim.DrawStim(deg1*5, deg1*5, cntx + deg1*iso, cnty, 1.0, 1.0, 1.0)
-lfixv = DrawStim.DrawStim(3, 8, cntx - deg1*iso, cnty, 0.0,0.0,1.0)
-lfixw = DrawStim.DrawStim(8, 3, cntx - deg1*iso, cnty, 0.0,0.0,1.0)
-rfixv = DrawStim.DrawStim(3, 8, cntx + deg1*iso, cnty, 0.0,0.0,1.0)
-rfixw = DrawStim.DrawStim(8, 3, cntx + deg1*iso, cnty, 0.0,0.0,1.0)
+bsl = DrawStim.Quad(deg1*5, deg1*5, cntx - deg1*iso, cnty, 1.0, 1.0, 1.0)
+bsr = DrawStim.Quad(deg1*5, deg1*5, cntx + deg1*iso, cnty, 1.0, 1.0, 1.0)
+lfixv = DrawStim.Quad(3, 8, cntx - deg1*iso, cnty, 0.0,0.0,1.0)
+lfixw = DrawStim.Quad(8, 3, cntx - deg1*iso, cnty, 0.0,0.0,1.0)
+rfixv = DrawStim.Quad(3, 8, cntx + deg1*iso, cnty, 0.0,0.0,1.0)
+rfixw = DrawStim.Quad(8, 3, cntx + deg1*iso, cnty, 0.0,0.0,1.0)
+
+circler = DrawStim.Circle(cntx + deg1*iso+d, cnty, 3, 50, 120)
+circlel = DrawStim.Circle(cntx - deg1*iso-d, cnty, 3, 50, 120)
+lerge_circler = DrawStim.Circle(cntx + deg1*iso, cnty, 3, 100, 120)
+lerge_circlel = DrawStim.Circle(cntx - deg1*iso, cnty, 3, 100, 120)
 
 # Display fixation
 def fixer():
@@ -115,9 +101,16 @@ def fixer():
 
 # display stimlus
 def stimli(dt):
-    draw_batches.append(circler)
     draw_objects.append(inner)
     draw_objects.append(outer)
+    draw_objects.append(circler)
+    draw_objects.append(lerge_circler)
+    draw_objects.append(circlel)
+    draw_objects.append(lerge_circlel)
+    draw_objects.append(lfixv)
+    draw_objects.append(lfixw)
+    draw_objects.append(rfixv)
+    draw_objects.append(rfixw)
 
 # A ending trial function
 def end_routine(dt):
@@ -130,16 +123,9 @@ def end_routine(dt):
 def on_draw():
     # Refresh window
     win.clear()
-    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)                             
-    glEnable (GL_BLEND)                                                            
-    glEnable (GL_LINE_SMOOTH);                                                     
-    glHint (GL_LINE_SMOOTH_HINT, GL_DONT_CARE)        
     # 描画対象のオブジェクトを描画する
     for draw_object in draw_objects:
         draw_object.draw()
-    for batches in draw_batches:
-        glLineWidth(2)
-        batch.draw()
 
 # Event handler handlers
 def set_handler(dt):
@@ -150,7 +136,6 @@ def remove_handler(dt):
 # Remove all components
 def delete(dt):
     del draw_objects[:]
-    del draw_batches[:]
     p_sound.play()
     # Check the experiment continue or break
     if i == dl - 1:
@@ -178,16 +163,10 @@ for i in range(dl):
     colb = da[1] # Store variance of index [i], column 1
     list_a.append(cola)
     list_b.append(colb)
-    
+    print(2*round(r/line_width))   
     # Set up polygon for stimulus
-    inner = DrawStim.DrawLine(cntx + deg1*iso*colb+r/4, cnty-r, r*1.2-cola, 10, 24, 10, 0)
-    outer = DrawStim.DrawLine(cntx + deg1*iso*colb-r*1.2, cnty-r, r*1.2-cola, 10, 34, 10, 0)
-    hmask = DrawLine.Mask(cntx + deg1*iso*colb, cnty, r, 120, hmask_group)
-    pmask = DrawLine.Mask(cntx + deg1*iso*colb, cnty, r, 120, pmask_group1)
-    pm = DrawLine.Mask(cntx + deg1*iso*colb, cnty, r, 120, pmask_group2)
-    hmask.half_mask()
-    pmask.polygon_mask_upper_right()
-    pm.polygon_mask_lower_right()
+    inner = DrawStim.cLine(cntx - deg1*iso - d, cnty, -cola, line_width, 2*round(r/line_width), line_width, r, 0)
+    outer = DrawStim.cLine(cntx - deg1*iso - d, cnty, cola, line_width, 2*round(r/line_width), line_width, r, 180)
     
     # Scheduling flow
     pyglet.clock.schedule_once(remove_handler, 0.0)
